@@ -11,6 +11,7 @@ package leaderprotocol1;
  */
 public class process 
 {
+    private static final int MAX_PROC = 500;
     private final int pid; // process id (java process id? )
     private int[] members; // contains all known pids
     private int[] timer; // timer to check if link is timely
@@ -27,6 +28,7 @@ public class process
     public process(int pid)
     {
             this.pid = pid;
+            susp_level = new int[MAX_PROC];
             
         
     }
