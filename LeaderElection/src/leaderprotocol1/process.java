@@ -21,14 +21,46 @@ public class process
     private int[] susp_level; // level of suspicion that process j crashed 
     private int[][] suspected_by; // list of processes that suspect process j
     private int sn; // local seq number of message
-    private message[] state;
+    private message[] state; // last message received by process k
     
     
     
     public process(int pid)
     {
-            this.pid = pid;
+            members = new int[MAX_PROC];
+            timer = new int[MAX_PROC];
+            timeout = new int[MAX_PROC];
+            silent = new int[MAX_PROC];
+            to_reset = new int[MAX_PROC];
             susp_level = new int[MAX_PROC];
+            suspected_by = new int[MAX_PROC][MAX_PROC];
+            state = new message[MAX_PROC];
+            sn=0;
+            this.pid = pid;
+            
+            
+            for (int i = 0; i < MAX_PROC; i++) 
+            {
+                members[i] = 0;
+                timer[i] = 0;
+                timeout[i] = 0;
+                silent[i] = 0;
+                to_reset[i] = 0;
+                susp_level[i] = 0;
+                for (int j = 0; j < MAX_PROC; j++) 
+                {
+                    suspected_by[i][j] = 0;
+                }
+                state[i].k = 0;
+                state[i].snk = 0;
+                for (int j = 0; j < MAX_PROC; j++) 
+                {
+                    state[i].susp_level[j] = 0;
+                }
+                state[i].silent = 0;
+                
+            }
+            
             
         
     }
