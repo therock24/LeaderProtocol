@@ -3,8 +3,10 @@
     <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2" lastBookmarkId="0"/>
     <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/2">
         <group>
-            <file>file:/C:/Users/vitor/Documents/NetBeansProjects/setec1718-ui/LeaderElection/src/leaderprotocol1/message.java</file>
-            <file>file:/C:/Users/vitor/Documents/NetBeansProjects/setec1718-ui/LeaderElection/src/leaderprotocol1/process.java</file>
+            <file>file:/home/vitor/NetBeansProjects/LeaderProtocol/LeaderElection/src/leaderprotocol1/message.java</file>
+            <file>file:/home/vitor/NetBeansProjects/LeaderProtocol/LeaderElection/src/customdatagram/customSocket.java</file>
+            <file>file:/home/vitor/NetBeansProjects/LeaderProtocol/LeaderElection/src/leaderprotocol1/Main.java</file>
+            <file>file:/home/vitor/NetBeansProjects/LeaderProtocol/LeaderElection/src/leaderprotocol1/process.java</file>
         </group>
     </open-files>
 </project-private>

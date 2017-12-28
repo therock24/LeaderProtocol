@@ -5,6 +5,7 @@
  */
 package leaderprotocol1;
 
+import static java.lang.Integer.max;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -16,6 +17,7 @@ import java.util.Map;
 public class process 
 {
     private static final int alpha = 10; // min number of processes that do not crash
+    private static final int t_unit = 10;
     private final int pid; // process id (java process id? )
     private ArrayList<Integer> members; // contains all known pids
     private Map<Integer,Integer> timer; // timer to check if link is timely
@@ -42,11 +44,6 @@ public class process
             state = new HashMap();
             state.put(this.pid,new message());
             sn=0;
-            
-            
-            
-            
-            
     }
     
     public void task1()
@@ -97,21 +94,83 @@ public class process
        
         //complete
     }
+ 
     
-    public void task2()
+    public int leader()
     {
-        //step 01
+        int min = 999999;
+        int leader = 0;
         
+        for(int j : members)
+        {
+            if(susp_level.get(j) < min )
+            {
+                min = susp_level.get(j);
+                leader = j;
+            }
+        }
+        return leader;
     }
     
-    public void leader()
+    public void updateTimeout(int j)
     {
-        for(int i : members)
+        //step 08
+        timeout.put(j,timeout.get(j)+1);
+        silent.add(j);
+    }
+    
+    public int processMessage(message msg)
+    {
+        //step 09
+        //perguntar ao prof nao sei quando
+        if(msg.snk <= this.state.get(msg.k).snk)
         {
-            
+             return 0;
         }
         
+        //step 10
+        
+        
+        //step 11
+        if(this.members.contains(msg.k))
+        {   
+            this.state.put(msg.k,msg);
+            
+            //step12
+            //stop timer
+            this.to_reset.add(msg.k);
+            this.silent.remove(msg.k);
+            
+        }
+        else
+        {
+            //step13
+            this.state.put(msg.k,msg);
+            
+            //step14/15/16
+            this.susp_level.put(msg.k,0);
+            this.suspected_by.put(msg.k,new ArrayList());
+            this.timeout.put(msg.k,this.t_unit);
+            this.timer.put(msg.k,this.timeout.get(msg.k));
+            this.members.add(msg.k);
+            this.to_reset.add(msg.k);
+                    
+        }
+        
+        //step18
+        for(int l : msg.susp_level.keySet())
+        {
+            this.susp_level.put(l,max(this.susp_level.get(l),msg.susp_level.get(l)));
+        }
+        
+        //step 19
+        for(int l : msg.silent )
+        {
+            ArrayList<Integer> aux = this.suspected_by.get(l);
+            aux.add(msg.k);
+            this.suspected_by.put(l,aux);
+        }
+        return 1;
     }
-    
 }
     
