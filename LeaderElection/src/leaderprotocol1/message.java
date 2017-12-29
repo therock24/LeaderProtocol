@@ -5,6 +5,7 @@
  */
 package leaderprotocol1;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -13,7 +14,7 @@ import java.util.Map;
  *
  * @author Vitor
  */
-public class message 
+public class message implements Serializable 
 {
     public int k;
     public int snk;

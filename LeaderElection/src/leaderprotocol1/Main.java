@@ -5,7 +5,7 @@
  */
 package leaderprotocol1;
 
-import customdatagram.customSocket;
+import customdatagram.CustomSocket;
 import static java.lang.Thread.sleep;
 import java.lang.management.ManagementFactory;
 
@@ -20,11 +20,13 @@ public class Main {
      */
     public static void main(String[] args) throws InterruptedException {
         // TODO code application logic here
-         int pid = Integer.parseInt(ManagementFactory.getRuntimeMXBean().getName().split("@")[0]);
-         System.out.println("pid = " + pid);
-         customSocket socket = new customSocket();
-         sleep(5000);
-         socket.register(pid);
+         process p1 = new process();
+         System.out.println("pid = " + p1.pid);
+         p1.start();
+         sleep(20000);
+         p1.stop();
+         
+         
     }
     
 }

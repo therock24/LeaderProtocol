@@ -5,10 +5,17 @@
  */
 package leaderprotocol1;
 
+import customdatagram.CustomSocket;
 import static java.lang.Integer.max;
+import java.lang.management.ManagementFactory;
+import java.net.MulticastSocket;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  *
@@ -17,10 +24,11 @@ import java.util.Map;
 public class process 
 {
     private static final int alpha = 10; // min number of processes that do not crash
-    private static final int t_unit = 10;
-    private final int pid; // process id (java process id? )
+    private static final int t_unit = 1; // time unit in miliseconds
+    private static final int eta = 100;
+    public final int pid; // process id (java process id? )
     private ArrayList<Integer> members; // contains all known pids
-    private Map<Integer,Integer> timer; // timer to check if link is timely
+    private Map<Integer,Timer> timer; // timer to check if link is timely
     private Map<Integer,Integer> timeout; // timeout value increased when timer expires
     private ArrayList<Integer> silent; // contains all processes that timer expired since last reset
     private ArrayList<Integer> to_reset; // list of processes that will need to reset timer
@@ -28,12 +36,18 @@ public class process
     private Map<Integer,ArrayList<Integer>> suspected_by; // list of processes that suspect process j
     private int sn; // local seq number of message
     private Map<Integer,message> state; // last message received by process k
+    private CustomSocket csocket;
+    private Thread RxThread;
+    private Thread TimerThread;
+    private Thread TxThread;
+    private boolean rxflag;
+    private boolean txflag;
+    private boolean timerflag;
     
     
-    
-    public process(int pid)
+    public process()
     {
-            this.pid = pid;
+            pid = Integer.parseInt(ManagementFactory.getRuntimeMXBean().getName().split("@")[0]);;
             members = new ArrayList();
             timer = new HashMap();
             timeout = new HashMap();
@@ -44,6 +58,10 @@ public class process
             state = new HashMap();
             state.put(this.pid,new message());
             sn=0;
+            csocket = new CustomSocket();
+            rxflag = true;
+            txflag = true;
+            //csocket.register(pid);
     }
     
     public void task1()
@@ -83,12 +101,15 @@ public class process
         state.put(this.pid,aux);
         
         //step 06
-        //broadcast(state)
+        this.csocket.broadcast(aux);
         
         //step 07
         for(int j : this.to_reset)
         {
-            this.timer.put(j, this.timeout.get(j));
+            Timer t_aux = this.timer.get(j);
+            t_aux.cancel();
+            t_aux.purge();
+            this.timer.put(j,create_timer(j));
         }
         this.to_reset = new ArrayList();
        
@@ -104,14 +125,19 @@ public class process
         for(int j : members)
         {
             if(susp_level.get(j) < min )
-            {
+            {   
                 min = susp_level.get(j);
                 leader = j;
             }
+            else if(susp_level.get(j) == min && j < leader)
+            {
+                leader = j;
+            }
         }
+        
         return leader;
-    }
-    
+    } 
+        
     public void updateTimeout(int j)
     {
         //step 08
@@ -121,25 +147,25 @@ public class process
     
     public int processMessage(message msg)
     {
-        //step 09
-        //perguntar ao prof nao sei quando
-        if(msg.snk <= this.state.get(msg.k).snk)
-        {
-             return 0;
-        }
-        
-        //step 10
-        
-        
+
         //step 11
         if(this.members.contains(msg.k))
         {   
+            //step 09
+            if(msg.snk <= this.state.get(msg.k).snk)
+            {
+                 return 0;
+            }
             this.state.put(msg.k,msg);
             
             //step12
             //stop timer
             this.to_reset.add(msg.k);
-            this.silent.remove(msg.k);
+            if(this.silent.contains(msg.k))
+            {
+                this.silent.remove((Object)msg.k);
+            } 
+            this.timer.get(msg.k).cancel();
             
         }
         else
@@ -151,7 +177,7 @@ public class process
             this.susp_level.put(msg.k,0);
             this.suspected_by.put(msg.k,new ArrayList());
             this.timeout.put(msg.k,this.t_unit);
-            this.timer.put(msg.k,this.timeout.get(msg.k));
+            this.timer.put(msg.k,create_timer(msg.k));
             this.members.add(msg.k);
             this.to_reset.add(msg.k);
                     
@@ -172,5 +198,86 @@ public class process
         }
         return 1;
     }
+
+    public int start()
+    {
+        RxThread = new Thread(new Runnable() 
+        {
+        @Override
+        public void run() 
+        {
+            System.out.println("Waiting for data to receive.. ");
+            while(rxflag)
+            {
+                message msg = csocket.receive();
+                if(msg != null)
+                {
+                    processMessage(msg);
+                    System.out.println("recv count = " + sn);
+                }
+            }
+        }
+    });
+    RxThread.start();  
+    TxThread = new Thread(new Runnable() 
+        {
+        @Override
+        public void run() 
+        {
+            System.out.println("Tx started!");
+            while(txflag)
+            {
+                try 
+                {
+                    Thread.sleep(10*eta);
+                } 
+                catch (InterruptedException ex) 
+                {
+                    Logger.getLogger(process.class.getName()).log(Level.SEVERE, null, ex);
+                }
+                task1();
+                System.out.println("Seq num: " + sn);
+            }
+        }
+    });
+    TxThread.start();
+    TimerThread = new Thread(new Runnable() 
+        {
+        @Override
+        public void run() 
+        {
+                
+        }
+    });
+    TimerThread.start();  
+        
+    
+    return 1;
+    }
+    
+    private Timer create_timer(int j)
+    {
+        Timer t_aux = new Timer();
+        
+        TimerTask task = new TimerTask() 
+        {
+            @Override
+            public void run() 
+            {
+                updateTimeout(j);
+            }
+        };
+        t_aux.schedule(task,this.timeout.get(j));
+        
+        return t_aux;
+    }
+    
+    public int stop()
+            {
+                rxflag = false;
+                txflag = false;
+                timerflag = false;
+                return 1;
+            }
 }
     
