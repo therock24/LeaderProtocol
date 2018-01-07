@@ -13,18 +13,22 @@ import java.lang.management.ManagementFactory;
  *
  * @author Vitor
  */
+
 public class Main {
 
     /**
      * @param args the command line arguments
      */
+    
     public static void main(String[] args) throws InterruptedException {
         // TODO code application logic here
          process p1 = new process();
          System.out.println("pid = " + p1.pid);
          p1.start();
-         sleep(20000);
+         sleep(90000);
          p1.stop();
+         p1.outputStats();
+         System.exit(0);
          
          
     }

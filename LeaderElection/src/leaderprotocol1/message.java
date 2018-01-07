@@ -9,6 +9,9 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  *
@@ -18,14 +21,14 @@ public class message implements Serializable
 {
     public int k;
     public int snk;
-    public Map<Integer,Integer> susp_level;
-    public ArrayList<Integer> silent;
+    public ConcurrentMap<Integer,Integer> susp_level;
+    public CopyOnWriteArrayList<Integer> silent;
     
     public message()
     {
         k=0;
         snk=0;
-        susp_level = new HashMap();
-        silent = new ArrayList();;
+        susp_level = new ConcurrentHashMap();
+        silent = new CopyOnWriteArrayList();;
     }
 }

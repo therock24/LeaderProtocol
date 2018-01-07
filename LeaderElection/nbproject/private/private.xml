@@ -5,7 +5,7 @@
         <group>
             <file>file:/home/vitor/NetBeansProjects/LeaderProtocol/LeaderElection/src/leaderprotocol1/message.java</file>
             <file>file:/home/vitor/NetBeansProjects/LeaderProtocol/LeaderElection/src/customdatagram/CustomSocket.java</file>
-            <file>file:/home/vitor/NetBeansProjects/LeaderProtocol/LeaderElection/src/leaderprotocol1/Lock.java</file>
+            <file>file:/home/vitor/NetBeansProjects/LeaderProtocol/LeaderElection/src/customdatagram/SocketStats.java</file>
             <file>file:/home/vitor/NetBeansProjects/LeaderProtocol/LeaderElection/src/leaderprotocol1/Main.java</file>
             <file>file:/home/vitor/NetBeansProjects/LeaderProtocol/LeaderElection/src/leaderprotocol1/process.java</file>
         </group>

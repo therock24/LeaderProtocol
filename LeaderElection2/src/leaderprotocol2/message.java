@@ -15,6 +15,9 @@ import java.util.Map;
  */
 public class message {
     
+    public static final int HEARTBEAT = 1;
+    public static final int STOP_LEADER = 2;
+    public static final int SUSPICION = 3;
     public int tag_k; // 1- heartbeat ; 2 - stop_leader; 3 - suspicion
     public int k; // id of k
     public int sl_k; // suspect level of k

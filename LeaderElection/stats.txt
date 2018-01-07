@@ -1,0 +1,1 @@
+PID: 15692    AVGDelay: 97.10093    Lostmsg: 34    totalmsg: 276

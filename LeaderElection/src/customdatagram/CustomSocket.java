@@ -17,6 +17,7 @@ import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import leaderprotocol1.message;
@@ -28,6 +29,9 @@ import leaderprotocol1.message;
 
 public class CustomSocket 
 {
+    private static final int DELAY_MAX = 200;   // delay in miliseconds
+    private static final double LOSS_PROB = 0.15;   // probability message is lost
+    private static int pid;        
     private static final int port = 6789;
     private static final int MAX_PROC = 30;
     private static final int buffersize = (MAX_PROC*(MAX_PROC-1) + MAX_PROC + 2)*8;
@@ -35,31 +39,29 @@ public class CustomSocket
     private MulticastSocket msocket;
     private InetAddress group;
     private DatagramPacket hello;
+    public SocketStats Stats;
 
-    public CustomSocket() 
+    public CustomSocket(int pid) 
     {
-        try {
+        try 
+        {
             this.dsocket = new DatagramSocket();
-        } catch (SocketException ex) {
-            Logger.getLogger(CustomSocket.class.getName()).log(Level.SEVERE, null, ex);
-        }  
-        try {
             this.msocket = new MulticastSocket(port);
-        } catch (IOException ex) {
-            Logger.getLogger(CustomSocket.class.getName()).log(Level.SEVERE, null, ex);
-        }
-        try {
             this.group = InetAddress.getByName("224.0.0.1");
-        } catch (UnknownHostException ex) {
+            this.Stats = new SocketStats(pid);
+            this.pid = pid;
+            msocket.joinGroup(group);
+            
+        } 
+        catch (IOException ex) 
+        {
             Logger.getLogger(CustomSocket.class.getName()).log(Level.SEVERE, null, ex);
         }
-        try {
-            msocket.joinGroup(group);
-        } catch (IOException ex) {
-            Logger.getLogger(CustomSocket.class.getName()).log(Level.SEVERE, null, ex);
-        }    
-    }
+        
+    }   
     
+            
+        
         public int register(int pid) throws InterruptedException 
         {
            String msg = "hello i am " + pid ;
@@ -100,38 +102,56 @@ public class CustomSocket
             return 1;
         }
         
-         public message receive()
+        public message receive()
         {
             byte[] buffer = new byte[buffersize];
+            double delay = DELAY_MAX*Math.random();
             message msg = null;
-            try 
-            {
-                msocket.receive(new DatagramPacket(buffer, buffersize, group, port));
-                System.out.println("Datagram received!");
-                ByteArrayInputStream bais = new ByteArrayInputStream(buffer);
-                ObjectInputStream ois = new ObjectInputStream(bais);
-                Object readObject = ois.readObject();
-                if (readObject instanceof message) 
-                {
-                    msg = (message) readObject;
-                    System.out.println("Message is: k = " + msg.k + " , snk = " + msg.snk);
-                } 
-                else 
-                {
-                    System.out.println("The received object is not of type message!");
-                    msg = null;
-                }
-            } 
-            catch (IOException ex) 
-            {
-                Logger.getLogger(CustomSocket.class.getName()).log(Level.SEVERE, null, ex);
-            } 
-            catch (ClassNotFoundException ex) 
-            {
-                Logger.getLogger(CustomSocket.class.getName()).log(Level.SEVERE, null, ex);
-            }
             
-            return msg;
+            // Randomly discard messages
+            
+                try
+                {
+                    msocket.receive(new DatagramPacket(buffer, buffersize, group, port));
+                    //System.out.println("Datagram received!");
+                    if(Math.random() > LOSS_PROB)
+                    {
+
+                        // sleep for a random amount of time
+                        TimeUnit.MILLISECONDS.sleep((int)(delay));
+
+
+                        ByteArrayInputStream bais = new ByteArrayInputStream(buffer);
+                        ObjectInputStream ois = new ObjectInputStream(bais);
+                        Object readObject = ois.readObject();
+                        if (readObject instanceof message) 
+                        {
+                            msg = (message) readObject;
+                            if(msg.k == this.pid)
+                            {
+                                msg = null;
+                            }
+                            //System.out.println("Message is: k = " + msg.k + " , snk = " + msg.snk);
+                        } 
+                        else 
+                        {
+                            //System.out.println("The received object is not of type message!");
+                            msg = null;
+                        }
+                        Stats.update(false,delay);
+                   }
+                   else
+                   {
+                       Stats.update(true,0);
+                   }
+                    
+                }
+                catch (IOException | ClassNotFoundException | InterruptedException ex ) 
+                {
+                   Logger.getLogger(CustomSocket.class.getName()).log(Level.SEVERE, null, ex);
+                }    
+                return msg;
+              
         }
           
 }
