@@ -8,15 +8,10 @@ package leaderprotocol1;
 import customdatagram.CustomSocket;
 import static java.lang.Integer.max;
 import java.lang.management.ManagementFactory;
-import java.net.MulticastSocket;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -43,16 +38,14 @@ public class process
     private ConcurrentMap<Integer,message> state; // last message received by process k
     private CustomSocket csocket;
     private Thread RxThread;
-    private Thread TimerThread;
     private Thread TxThread;
     private boolean rxflag;
     private boolean txflag;
-    private boolean timerflag;
     
     
     public process()
     {
-            pid = Integer.parseInt(ManagementFactory.getRuntimeMXBean().getName().split("@")[0]);;
+            pid = Integer.parseInt(ManagementFactory.getRuntimeMXBean().getName().split("@")[0]);
             members = new CopyOnWriteArrayList();
             timer = new ConcurrentHashMap();
             timeout = new ConcurrentHashMap();
@@ -64,6 +57,8 @@ public class process
             csocket = new CustomSocket(pid);
             message aux = new message();
             
+            
+            // init
             sn=0;
             aux.k = this.pid;
             aux.snk = this.sn;
@@ -76,7 +71,6 @@ public class process
             
             rxflag = true;
             txflag = true;
-            //csocket.register(pid);
     }
     
     public void task1()
@@ -278,17 +272,7 @@ public class process
             }
         }
     });
-    TxThread.start();
-    TimerThread = new Thread(new Runnable() 
-        {
-        @Override
-        public void run() 
-        {
-                
-        }
-    });
-    TimerThread.start();  
-        
+    TxThread.start();       
     
     return 1;
     }
@@ -314,7 +298,6 @@ public class process
             {
                 rxflag = false;
                 txflag = false;
-                timerflag = false;
                 return 1;
             }
     

@@ -4,16 +4,15 @@
  * and open the template in the editor.
  */
 package leaderprotocol2;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
+ 
+import java.io.Serializable;
 
 /**
  *
  * @author Vitor
  */
-public class message {
+public class message implements Serializable
+{
     
     public static final int HEARTBEAT = 1;
     public static final int STOP_LEADER = 2;
