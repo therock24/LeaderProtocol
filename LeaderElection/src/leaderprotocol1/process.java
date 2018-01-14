@@ -23,9 +23,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class process 
 {  
-    private static final int alpha = 1; // min number of processes that do not crash
-    private static final int t_unit = 100; // time unit in miliseconds
-    private static final int eta = 10*t_unit;
+    private static int alpha; // min number of processes that do not crash
+    private static int t_unit; // time unit in miliseconds
+    private static int eta;
     public final int pid; // process id (java process id? )
     private CopyOnWriteArrayList<Integer> members; // contains all known pids
     private ConcurrentMap<Integer,Timer> timer; // timer to check if link is timely
@@ -37,15 +37,14 @@ public class process
     private int sn; // local seq number of message
     private ConcurrentMap<Integer,message> state; // last message received by process k
     private CustomSocket csocket;
-    private Thread RxThread;
-    private Thread TxThread;
-    private boolean rxflag;
-    private boolean txflag;
+    private Thread RxThread, TxThread, PtThread;
+    public boolean rxflag, txflag, ptflag, t_alloc;
+ 
     
     
-    public process()
+    public process(int pid,int delay, double lossprob, int eta, int t_unit, int alpha)
     {
-            pid = Integer.parseInt(ManagementFactory.getRuntimeMXBean().getName().split("@")[0]);
+            this.pid = pid;
             members = new CopyOnWriteArrayList();
             timer = new ConcurrentHashMap();
             timeout = new ConcurrentHashMap();
@@ -54,8 +53,12 @@ public class process
             susp_level = new ConcurrentHashMap();
             suspected_by = new ConcurrentHashMap();
             state = new ConcurrentHashMap();
-            csocket = new CustomSocket(pid);
+            csocket = new CustomSocket(pid, delay, lossprob);
             message aux = new message();
+            
+            this.eta = eta*t_unit;
+            this.t_unit = t_unit;
+            this.alpha = alpha;
             
             
             // init
@@ -71,6 +74,8 @@ public class process
             
             rxflag = true;
             txflag = true;
+            ptflag = true;
+            //t_alloc = false;
     }
     
     public void task1()
@@ -122,9 +127,21 @@ public class process
         for(int j : this.to_reset)
         {
             Timer t_aux = this.timer.get(j);
-            t_aux.cancel();
-            t_aux.purge();
-            this.timer.put(j,create_timer(j));
+            if(t_aux != null)
+            {
+                t_aux.cancel();
+                t_aux.purge();
+            }
+            /*while(t_alloc)
+            {
+                try {
+                    Thread.sleep(1);
+                } catch (InterruptedException ex) {
+                    Logger.getLogger(process.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }*/
+            if(this.timeout.get(j) != null)
+                this.timer.put(j,create_timer(j));
         }
         this.to_reset = new CopyOnWriteArrayList();
        
@@ -136,12 +153,10 @@ public class process
     {
         int min = 999999;
         int leader = 0;
-        System.out.println("silent = " + silent);
         
         
         for(int j : members)
         {
-            System.out.println("susp_level " + j + " = " + susp_level.get(j));
             if(susp_level.get(j) < min )
             {   
                 min = susp_level.get(j);
@@ -186,12 +201,17 @@ public class process
                 {
                     this.silent.remove((Object)msg.k);
                 } 
-                this.timer.get(msg.k).cancel();
+                Timer t_aux = this.timer.get(msg.k);
+                if(t_aux != null)
+                {
+                    t_aux.cancel();
+                }
 
             }
             else
             {
                 //step13
+             
                 this.state.put(msg.k,msg);
 
                 //step14/15/16
@@ -202,6 +222,7 @@ public class process
                 this.timer.put(msg.k,create_timer(msg.k));
                 this.members.add(msg.k);
                 this.to_reset.add(msg.k);
+                
 
             }
 
@@ -236,7 +257,7 @@ public class process
         @Override
         public void run() 
         {
-            System.out.println("Waiting for data to receive.. ");
+            //System.out.println("Waiting for data to receive.. ");
             while(rxflag)
             {
                 message msg = csocket.receive();
@@ -244,10 +265,11 @@ public class process
                 {
                     processMessage(msg);
                     //System.out.println("recv count = " + sn);
-                    System.out.println("leader = " + leader() + " my.pid = " + pid + "");
+                    //System.out.println("leader = " + leader() + " my.pid = " + pid + "");
                     //System.out.println("timeout leader = " + timeout.get(leader()));
                 }
             }
+            System.out.println("Stop rx thread pid " + pid);
         }
     });
     RxThread.start();  
@@ -256,7 +278,7 @@ public class process
         @Override
         public void run() 
         {
-            System.out.println("Tx started!");
+            //System.out.println("Tx started!");
             while(txflag)
             {
                 try 
@@ -265,14 +287,49 @@ public class process
                 } 
                 catch (InterruptedException ex) 
                 {
-                    Logger.getLogger(process.class.getName()).log(Level.SEVERE, null, ex);
+                    System.out.println("exception in txthread pid " + pid);
                 }
+                //t_alloc = true;
                 task1();
+                //t_alloc = false;
+                //System.out.println(" ");
                 //System.out.println("Seq num: " + sn);
             }
+            System.out.println("Stop tx thread pid " + pid);
         }
+ 
     });
-    TxThread.start();       
+    TxThread.start();
+    PtThread = new Thread(new Runnable() 
+        {
+            @Override
+            public void run() 
+            {
+                int time = 0;
+                while(ptflag)
+                try 
+                {
+                    System.out.println(pid +": PID: " + pid + " Leader :" + leader());
+                    System.out.println(pid +": Silent :" + silent);
+                    for(int j : members)
+                    {
+                        System.out.println(pid + ": pid: " +  j +  " susp_level " + susp_level.get(j));
+                    }
+                    System.out.println("");
+                    System.out.println(pid + ": Time Spent: " + time + " seconds");
+                    System.out.println(pid + ":---------------------------");
+                    Thread.sleep(1000);
+                    time++;
+                } 
+                catch(InterruptedException ex) 
+                {
+                    //Logger.getLogger(process.class.getName()).log(Level.SEVERE, null, ex);
+                    System.out.println("exception in pthread pid " + pid);
+                }
+                //System.out.println("exiting ptthread pid "+pid);
+            }
+        });
+        PtThread.start();
     
     return 1;
     }
@@ -289,6 +346,7 @@ public class process
                 updateTimeout(j);
             }
         };
+        
         t_aux.schedule(task,this.timeout.get(j));
         
         return t_aux;
@@ -296,8 +354,16 @@ public class process
     
     public int stop()
             {
-                rxflag = false;
-                txflag = false;
+                //RxThread.interrupt();
+                //RxThread.interrupt();
+                //PtThread.interrupt();
+                RxThread.stop();
+                TxThread.stop();
+                PtThread.stop();
+                //rxflag = false;
+                //txflag = false;
+                //ptflag = false;
+                
                 return 1;
             }
     

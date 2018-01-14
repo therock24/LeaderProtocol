@@ -23,8 +23,8 @@ import java.util.logging.Logger;
  */
 public class process 
 {
-    private static final int t_unit = 100;
-    private static final int eta = 10*t_unit;
+    private static int t_unit;
+    private static int eta;
     private final int pid; // process id (java process id? )
     private boolean next_period;
     private CopyOnWriteArrayList<Integer> members; // contains all known pids
@@ -38,16 +38,16 @@ public class process
     private int hbc; // number of periods that i was considered leader
     private ConcurrentMap<Integer,Integer> last_stop_leader; // greatest hbc value received from k
     private CustomSocket csocket;
-    private Thread RxThread;
-    private Thread TxThread;
-    private boolean rxflag;
-    private boolean txflag;
+    private Thread RxThread, TxThread, PtThread;
+    public boolean rxflag, txflag, ptflag;
+    private message lastrcv, lastsent;
+
     
     
     
-    public process()
+    public process(int pid, int delay, double lossprob, int eta, int t_unit)
     {
-            pid = Integer.parseInt(ManagementFactory.getRuntimeMXBean().getName().split("@")[0]);
+            this.pid = pid;
             members = new CopyOnWriteArrayList();
             timer = new ConcurrentHashMap();
             timeout = new ConcurrentHashMap();
@@ -57,11 +57,13 @@ public class process
             last_stop_leader = new ConcurrentHashMap();
             susp_level = new ConcurrentHashMap();
             contenders = new CopyOnWriteArrayList();
-            csocket = new CustomSocket(pid);
+            csocket = new CustomSocket(pid,delay,lossprob);
             rxflag = true;
             txflag = true;
+            ptflag = true;
             
-            
+            this.eta = eta*t_unit;
+            this.t_unit = t_unit;
             
             //init
             members.add(pid);
@@ -83,7 +85,8 @@ public class process
             message msg = new message(message.HEARTBEAT,this.pid,this.susp_level.get(this.pid),0,this.hbc);
                 
             //step 03
-            csocket.broadcast(msg);     
+            csocket.broadcast(msg);
+            lastsent = msg;
     }
     
     public int leader()
@@ -91,10 +94,10 @@ public class process
         int min = 999999;
         int leader = 0;
         
-        System.out.println("contenders = " + contenders);
+        //System.out.println("contenders = " + contenders);
         for(int j : contenders)
         {
-            System.out.println("susp_level " + j + " = " + susp_level.get(j));
+            //System.out.println("susp_level " + j + " = " + susp_level.get(j));
             if(susp_level.get(j) < min )
             {   
                 min = susp_level.get(j);
@@ -105,7 +108,7 @@ public class process
                 leader = j;
             }
         }
-        System.out.println("leader = " + leader);
+        //System.out.println("leader = " + leader);
         return leader;
     } 
     
@@ -115,9 +118,10 @@ public class process
         timeout.put(j,timeout.get(j)+1);
         message msg = new message(message.SUSPICION,this.pid,this.susp_level.get(this.pid),j,0);
         csocket.broadcast(msg);
+        lastsent = msg;
         
         //step 06
-        System.out.println("timer expired");
+        //System.out.println("timer expired");
         contenders.remove((Object)j);
         
         return 1;
@@ -135,13 +139,17 @@ public class process
                timerExpired(j);
             }
         };
-        t_aux.schedule(task,this.timeout.get(j));
+        if(this.timeout.get(j) != null)
+        {
+            t_aux.schedule(task,this.timeout.get(j));
+        }
         
         return t_aux;
     }
     
     public int processMessage(message msg)
     {
+        lastrcv = msg;
         //step 07
         if(!this.members.contains(msg.k))
         {   
@@ -162,6 +170,7 @@ public class process
             if(t_aux != null)
             {
                 t_aux.cancel();
+                t_aux.purge();
             }    
             this.timer.put(msg.k,create_timer(msg.k));
             if(!contenders.contains(msg.k))
@@ -178,6 +187,7 @@ public class process
             if(t_aux != null)
             {
                 t_aux.cancel();
+                t_aux.purge();
             }    
             
             if(contenders.contains(msg.k))
@@ -189,7 +199,7 @@ public class process
         //step 17
         else if(msg.tag_k == msg.SUSPICION && msg.silent_k == this.pid )
         {
-            System.out.println("increasing susp lee of " + msg.k);
+            //System.out.println("increasing susp lee of " + msg.k);
             this.susp_level.put(this.pid,this.susp_level.get(this.pid)+1);
         }
         return 1;
@@ -199,30 +209,12 @@ public class process
     
     public int start()
     {
-        RxThread = new Thread(new Runnable() 
+         TxThread = new Thread(new Runnable() 
         {
             @Override
             public void run() 
             {
-                System.out.println("Waiting for data to receive.. ");
-                while(rxflag)
-                {
-                    message msg = csocket.receive();
-                    if(msg != null)
-                    {
-                        processMessage(msg);
-                        System.out.println("recv " + msg.tag_k + " leader = " + leader() + " my.pid = " + pid + "");
-                    }
-                }
-            }
-        });
-        RxThread.start();  
-        TxThread = new Thread(new Runnable() 
-        {
-            @Override
-            public void run() 
-            {
-                System.out.println("Tx started!");
+                //System.out.println("Tx started!");
                 while(txflag)
                 {
                     try 
@@ -240,9 +232,10 @@ public class process
                         if(next_period)
                         {
                             message msg = new message(message.STOP_LEADER,pid,susp_level.get(pid),0,hbc);
-                            System.out.println("sending stop leader");
+                            //System.out.println("sending stop leader");
                             //step 04
                             csocket.broadcast(msg);
+                            lastsent = msg;
                         }
                         Thread.sleep(10);
                     } 
@@ -253,15 +246,104 @@ public class process
                 }
             }
         });
-        TxThread.start();       
+        TxThread.start();
+        RxThread = new Thread(new Runnable() 
+        {
+            @Override
+            public void run() 
+            {
+                //System.out.println("Waiting for data to receive.. ");
+                while(rxflag)
+                {
+                    message msg = csocket.receive();
+                    if(msg != null)
+                    {
+                        processMessage(msg);
+                        //System.out.println("recv " + msg.tag_k + " leader = " + leader() + " my.pid = " + pid + "");
+                    }
+                }
+            }
+        });
+        RxThread.start();  
+        PtThread = new Thread(new Runnable() 
+        {
+            @Override
+            public void run() 
+            {
+                int time = 0;
+                while(ptflag)
+                try 
+                {
+                    System.out.println(pid + ": PID: "+ pid+ " Leader :" + leader());
+                    System.out.println(pid + ": Contenders :" + contenders);
+                    for(int j : members)
+                    {
+                        System.out.println(pid + ": pid: " +  j +  " susp_level " + susp_level.get(j));
+                    }
+                    String lastmsg;
+                    if(leader() == pid && lastsent != null)
+                    {
+                        switch(lastsent.tag_k)
+                        {
+                            case 1:
+                                lastmsg = "HEARTBEAT";
+                                break;
+                            case 2:
+                                lastmsg = "STOP_LEADER";
+                                break;
+                            case 3:
+                                lastmsg = "SUSPICION";
+                                break;
+                            default:
+                                lastmsg = "none";
+                                break;
+                        }
+                        System.out.println(pid + ": Last msg sent: " + lastmsg );
+                    }
+                    else if (lastrcv != null)
+                    {
+                        switch(lastrcv.tag_k)
+                        {
+                            case 1:
+                                lastmsg = "HEARTBEAT";
+                                break;
+                            case 2:
+                                lastmsg = "STOP_LEADER";
+                                break;
+                            case 3:
+                                lastmsg = "SUSPICION";
+                                break;
+                            default:
+                                lastmsg = "none";
+                                break;
+                        }
+                         System.out.println(pid + ": Last msg received: " + lastmsg + " from pid " + lastrcv.k );                    
+                    }
+                   
+                    System.out.println(pid + ": Time Spent: " + time + " seconds");
+                    System.out.println("");
+                    Thread.sleep(1000);
+                    time++;
+                } 
+                catch(InterruptedException ex) 
+                {
+                    Logger.getLogger(process.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }
+        });
+        PtThread.start();
     
     return 1;
     }
     
     public int stop()
         {
-            rxflag = false;
-            txflag = false;
+            RxThread.stop();
+            TxThread.stop();
+            PtThread.stop();
+            //rxflag = false;
+            //txflag = false;
+            //ptflag = false;
             return 1;
         }
     

@@ -26,8 +26,8 @@ import leaderprotocol1.message;
 
 public class CustomSocket 
 {
-    private static final int DELAY_MAX = 200;   // delay in miliseconds
-    private static final double LOSS_PROB = 0.15;   // probability message is lost
+    private static int DELAY_MAX;   // delay in miliseconds
+    private static double LOSS_PROB;   // probability message is lost
     private static int pid;        
     private static final int port = 6789;
     private static final int MAX_PROC = 30;
@@ -38,7 +38,7 @@ public class CustomSocket
     private DatagramPacket hello;
     public SocketStats Stats;
 
-    public CustomSocket(int pid) 
+    public CustomSocket(int pid, int delay, double lossprob) 
     {
         try 
         {
@@ -48,6 +48,9 @@ public class CustomSocket
             this.Stats = new SocketStats(pid);
             this.pid = pid;
             msocket.joinGroup(group);
+            
+            DELAY_MAX = delay;
+            LOSS_PROB = lossprob;
             
         } 
         catch (IOException ex) 
